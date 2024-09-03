@@ -33,6 +33,7 @@ async function run() {
     const menuCollection = client.db("bistroBD").collection("menu");
     const reviewsCollection = client.db("bistroBD").collection("reviews");
     const cartCollection = client.db("bistroBD").collection("carts");
+    const paymentCollection = client.db("bistroBD").collection("payments");
 
 
     //jwt related api
@@ -58,7 +59,7 @@ async function run() {
 
     //middlewares to verify token
     const verifyToken = (req,res,next)=>{
-      console.log('inside verify token', req.headers.authorization);
+      // console.log('inside verify token', req.headers.authorization);
       if(!req.headers.authorization){
         return res.status(401).send({message: 'unauthorized access'});
       }
@@ -177,6 +178,7 @@ async function run() {
 
     app.post('/carts',async(req,res)=>{
       const cartItem= req.body;
+      // console.log(cartItem);
       const result = await cartCollection.insertOne(cartItem);
       res.send(result);
     })
@@ -212,6 +214,32 @@ async function run() {
       res.send({
         clientSecret: paymentIntent.client_secret
       })
+    })
+
+    app.get('/payments/:email',verifyToken,async(req,res) =>{
+      const query= {email: req.params.email}
+      if(req.params.email !== req.decoded.email){
+        return res.status(403).send({message: 'forbidden access'});
+      }
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    app.post('/payments', async(req,res)=>{
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+
+      //carefully delete each item from the cart
+
+      console.log('payment info',payment);
+      const query ={_id: {
+        $in: payment.cartIds.map(id => new ObjectId(id))
+      }};
+      
+      const deleteResult = await cartCollection.deleteMany(query);
+
+      res.send({paymentResult, deleteResult});
+
     })
 
     // Send a ping to confirm a successful connection
